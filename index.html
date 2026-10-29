@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a1120">
+<title>OSCE 考站計時器</title>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+*{box-sizing:border-box}body{margin:0}[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Layout: phone-first one column — mode bar, station card, ring clock as the hero, thumb-zone controls, live station board below */
+:root{
+  --ink:#0a1120; --surface:#121b2d; --raise:#1a2540; --line:#26334f;
+  --fg:#edf2fa; --muted:#8a97b1;
+  --scrub:#3ccbb8; --scrub-ink:#032420;
+  --amber:#ffb547; --amber-ink:#2b1a00;
+  --alarm:#ff5a5f; --alarm-glow:rgba(255,90,95,.35); --alarm-bg:#2a0d12;
+  --font-num:"Big Shoulders Display","Bahnschrift","DIN Condensed","Arial Narrow",sans-serif;
+  --font-ui:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --ring-color:var(--scrub);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ink);color:var(--fg);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;
+  background-image:radial-gradient(120% 60% at 50% 30%,color-mix(in srgb,var(--ring-color) 14%,transparent),transparent 70%);
+  background-attachment:fixed;transition:background-color .6s}
+body.over{background-color:var(--alarm-bg);animation:alarmBg 1.6s ease-in-out infinite}
+@keyframes alarmBg{50%{background-color:#3a1018}}
+.app{box-sizing:border-box;max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px;
+  padding-block:12px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;position:relative}
+.seg button{position:relative;z-index:1;background:none;border:0;color:var(--muted);font:inherit;font-size:14px;font-weight:700;
+  padding:8px 14px;border-radius:999px;cursor:pointer;transition:color .25s}
+.seg button[aria-pressed="true"]{color:var(--ink)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.seg .knob{position:absolute;top:3px;bottom:3px;left:3px;border-radius:999px;background:var(--fg);transition:transform .35s cubic-bezier(.3,1.4,.5,1),width .35s}
+.online{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);white-space:nowrap}
+.online i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.online.live i{background:var(--scrub);box-shadow:0 0 0 0 var(--scrub);animation:ping 2s infinite}
+@keyframes ping{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+/* station card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;
+  grid-template-columns:4.6em 1fr auto;gap:8px;align-items:end}
+.card .full{grid-column:1/3}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11px;letter-spacing:.14em;color:var(--muted)}
+.field input{font:inherit;font-size:16px;font-weight:700;color:var(--fg);background:var(--raise);border:1px solid transparent;
+  border-radius:10px;padding:9px 10px;width:100%;box-sizing:border-box;min-width:0;transition:border-color .2s}
+.field input:focus{outline:none;border-color:var(--scrub)}
+.field input:disabled{opacity:.8}
+.round{grid-row:1/3;grid-column:3;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--raise);border-radius:12px;padding:6px 12px;min-width:3.6em}
+.round small{font-size:11px;color:var(--muted);letter-spacing:.1em}
+.round b{font-family:var(--font-num);font-size:34px;line-height:1;font-weight:800}
+
+/* ring */
+.stage{display:flex;flex-direction:column;align-items:center;gap:12px}
+.ring{position:relative;width:min(84vw,360px);aspect-ratio:1;max-width:100%;border:0;background:none;padding:0;cursor:pointer;color:inherit;
+  border-radius:50%;transition:transform .15s}
+.ring:active{transform:scale(.98)}
+.ring:focus-visible{outline:3px solid var(--fg);outline-offset:6px}
+.ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+.ring .track{fill:none;stroke:var(--raise);stroke-width:14}
+.ring .prog{fill:none;stroke:var(--ring-color);stroke-width:14;stroke-linecap:round;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--ring-color) 55%,transparent));transition:stroke .4s}
+.ring .tick{stroke:var(--amber);stroke-width:3}
+.ring .dots circle{fill:var(--line)}
+.face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.state{font-size:14px;font-weight:700;letter-spacing:.24em;color:var(--muted);padding-left:.24em}
+.digits{font-family:var(--font-num);font-weight:800;font-size:clamp(78px,24vw,132px);line-height:.9;display:flex;color:var(--fg);transition:color .3s}
+.digits span{display:inline-block;width:.56em;text-align:center}
+.digits span.sep{width:.26em}
+.digits span.sign{width:auto;font-size:.5em;align-self:center;margin-right:.08em}
+.digits span.bump{animation:bump .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes bump{0%{transform:translateY(-.12em);opacity:.4}100%{transform:none;opacity:1}}
+.hint{font-size:12px;color:var(--muted)}
+.warn .digits{color:var(--amber)}
+.warn .ring{animation:beat 1s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.025)}}
+.over .digits{color:var(--alarm);text-shadow:0 0 30px var(--alarm-glow)}
+.over .ring{animation:shake .5s 1}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.ripple{position:absolute;inset:0;border-radius:50%;border:3px solid var(--alarm);opacity:0;pointer-events:none}
+.over .ripple{animation:ripple 1.6s ease-out infinite}
+@keyframes ripple{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.25);opacity:0}}
+
+/* controls */
+.controls{display:grid;grid-template-columns:1fr 1.8fr;gap:10px}
+.btn{font:inherit;font-weight:900;font-size:21px;letter-spacing:.12em;border:0;border-radius:18px;min-height:70px;cursor:pointer;position:relative;overflow:hidden;
+  transition:transform .12s,background .3s,color .3s}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.btn:disabled{cursor:not-allowed;opacity:.45}
+#main{background:var(--scrub);color:var(--scrub-ink);box-shadow:0 10px 30px -10px var(--scrub)}
+#main.pause{background:var(--amber);color:var(--amber-ink);box-shadow:0 10px 30px -10px var(--amber)}
+#main.next{background:var(--alarm);color:#fff;box-shadow:0 10px 30px -10px var(--alarm)}
+#hold{background:var(--surface);color:var(--fg);border:1px solid var(--line);font-size:16px;letter-spacing:.06em}
+#hold small{display:block;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.04em;margin-top:2px}
+#hold::after{content:"";position:absolute;left:0;bottom:0;height:100%;width:0;background:color-mix(in srgb,var(--alarm) 30%,transparent);transition:width .1s}
+#hold.holding::after{width:100%;transition:width .9s linear}
+.lock{grid-column:1/-1;text-align:center;font-size:14px;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:14px}
+.toast{min-height:20px;text-align:center;font-size:13px;color:var(--scrub)}
+
+/* board */
+.board h2{font-size:13px;letter-spacing:.2em;color:var(--muted);font-weight:700;margin:0 0 8px;display:flex;justify-content:space-between}
+.board ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.board li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 11px;display:flex;flex-direction:column;gap:3px;min-width:0;
+  animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.9);opacity:0}}
+.board li.me{border-color:var(--scrub)}
+.board .st{font-weight:900;font-size:15px;display:flex;justify-content:space-between;gap:6px}
+.board .st em{font-style:normal;font-size:11px;color:var(--scrub);font-weight:700}
+.board .it{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{align-self:flex-start;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-top:3px;background:var(--raise);color:var(--muted)}
+.pill.run{background:color-mix(in srgb,var(--scrub) 22%,transparent);color:var(--scrub)}
+.pill.warn{background:color-mix(in srgb,var(--amber) 22%,transparent);color:var(--amber)}
+.pill.over{background:color-mix(in srgb,var(--alarm) 25%,transparent);color:var(--alarm)}
+.empty{font-size:13px;color:var(--muted);background:var(--surface);border-radius:12px;padding:14px;line-height:1.6}
+
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.foot select,.chip{font:inherit;font-size:13px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 10px;cursor:pointer}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+@media (prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="seg" role="group" aria-label="計時模式">
+      <span class="knob" id="knob"></span>
+      <button id="mSolo" aria-pressed="true">單機</button>
+      <button id="mSync" aria-pressed="false">全場同步</button>
+    </div>
+    <span class="online" id="online"><i></i><span id="onlineTxt">單機模式</span></span>
+  </header>
+
+  <section class="card" aria-label="考站資訊">
+    <div class="field"><label for="st">站別</label><input id="st" value="第3站" maxlength="10"></div>
+    <div class="field"><label for="item">考題</label><input id="item" value="腹部身體檢查" maxlength="24"></div>
+    <div class="round" aria-label="輪次"><small>輪次</small><b id="roundNo">1</b></div>
+    <div class="field full"><label for="who">學員代號（請勿輸入真實姓名）</label><input id="who" value="學員A" maxlength="16"></div>
+  </section>
+
+  <section class="stage" id="stage">
+    <button class="ring" id="ring" aria-label="點一下開始或暫停">
+      <span class="ripple"></span>
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <g class="dots" id="dots"></g>
+        <circle class="track" cx="100" cy="100" r="88"></circle>
+        <circle class="prog" id="prog" cx="100" cy="100" r="88"></circle>
+        <line class="tick" id="tick" x1="100" y1="5" x2="100" y2="21"></line>
+      </svg>
+      <span class="face">
+        <span class="state" id="state">準備開始</span>
+        <span class="digits" id="digits" role="timer" aria-live="off"></span>
+        <span class="hint" id="hint">點圓環開始</span>
+      </span>
+    </button>
+    <div class="toast" id="toast" aria-live="polite"></div>
+  </section>
+
+  <section class="controls" id="controls">
+    <button class="btn" id="hold">重設<small>長按 1 秒</small></button>
+    <button class="btn" id="main">開始</button>
+  </section>
+
+  <section class="board" aria-label="考場總覽">
+    <h2><span>考場總覽</span><span id="boardCount"></span></h2>
+    <ul id="board"></ul>
+    <p class="empty" id="boardEmpty">切換到「全場同步」後，開著這個頁面的考官會依站別出現在這裡。</p>
+  </section>
+
+  <footer class="foot">
+    <label>每站時間
+      <select id="dur">
+        <option value="5">5 分鐘</option><option value="6">6 分鐘</option><option value="7">7 分鐘</option>
+        <option value="8" selected>8 分鐘</option><option value="10">10 分鐘</option><option value="12">12 分鐘</option>
+      </select>
+    </label>
+    <button class="chip" id="test">試聽鈴聲</button>
+  </footer>
+  <p class="note">剩 1 分鐘響 2 聲並開始心跳提醒；時間到響長鈴、轉紅並顯示超時。全場同步時由主考（頁面擁有者或編輯者）控制，其他考官手機自動跟著倒數。請關閉靜音、考前先試聽一次。</p>
+</div>
+
+<script>
+(()=>{
+  const $=id=>document.getElementById(id);
+  const WARN=60000, C=2*Math.PI*88;
+  const els={app:$('app'),digits:$('digits'),state:$('state'),hint:$('hint'),prog:$('prog'),tick:$('tick'),main:$('main'),hold:$('hold'),
+    ring:$('ring'),round:$('roundNo'),dur:$('dur'),toast:$('toast'),controls:$('controls'),board:$('board'),boardEmpty:$('boardEmpty'),
+    boardCount:$('boardCount'),online:$('online'),onlineTxt:$('onlineTxt'),mSolo:$('mSolo'),mSync:$('mSync'),knob:$('knob')};
+  const inputs=[$('st'),$('item'),$('who')];
+  els.prog.style.strokeDasharray=C;
+
+  // decorative minute dots
+  (function(){const g=$('dots');let h='';for(let i=0;i<60;i++){const a=i/60*2*Math.PI;const r=i%5?0.9:1.6;
+    h+=`<circle cx="${100+99*Math.cos(a)}" cy="${100+99*Math.sin(a)}" r="${r}"></circle>`;}g.innerHTML=h;})();
+
+  /* ---------- state ---------- */
+  const mk=d=>({status:'idle',startedAt:0,remain:d,duration:d,round:1});
+  let local=mk(8*60000), master=null, mode='solo';
+  let db=null, room=null, canControl=false, syncReady=false, writing=Promise.resolve();
+  const cur=()=> mode==='sync' && master ? master : local;
+  const remainOf=s=> s.status==='running' ? s.remain-(Date.now()-s.startedAt) : s.remain;
+  const isController=()=> mode==='solo' || canControl;
+
+  /* ---------- sound ---------- */
+  let ctx=null;
+  function audio(){ if(!ctx){try{ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} if(ctx&&ctx.state==='suspended')ctx.resume(); return ctx; }
+  function tone(f,at,len,vol=.5){const c=audio();if(!c)return;const o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.value=f;
+    const t=c.currentTime+at;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);g.gain.setValueAtTime(vol,t+len-.03);g.gain.linearRampToValueAtTime(0,t+len);
+    o.connect(g).connect(c.destination);o.start(t);o.stop(t+len+.02);}
+  const vib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+  const warnBell=()=>{tone(880,0,.25);tone(880,.4,.25);vib([200,150,200]);};
+  const endBell=()=>{for(let i=0;i<3;i++)tone(1046,i*.6,.45,.6);vib([600,200,600,200,600]);};
+  document.addEventListener('pointerdown',audio,{once:true});
+
+  /* ---------- wake lock ---------- */
+  let wake=null;
+  async function lockOn(){try{if(!wake&&'wakeLock' in navigator){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>wake=null);}}catch(e){}}
+  function lockOff(){try{wake&&wake.release()}catch(e){}wake=null;}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cur().status==='running')lockOn();});
+
+  /* ---------- render ---------- */
+  let prevMs=null, prevKey='', prevText='', prevRound=0, prevStatus='';
+  function fmt(ms){const neg=ms<0;const s=neg?Math.floor(-ms/1000):Math.ceil(ms/1000);return {sign:neg?'+':'',m:String(Math.floor(s/60)).padStart(2,'0'),s:String(s%60).padStart(2,'0')};}
+  function setDigits(ms){
+    const f=fmt(ms), text=f.sign+f.m+':'+f.s; if(text===prevText)return;
+    const chars=(f.sign?[f.sign]:[]).concat([...f.m,':',...f.s]);
+    if(els.digits.children.length!==chars.length){els.digits.innerHTML=chars.map(c=>`<span class="${c===':'?'sep':c==='+'?'sign':''}"></span>`).join('');}
+    const old=prevText; [...els.digits.children].forEach((sp,i)=>{const c=chars[i];if(sp.textContent!==c){sp.textContent=c;
+      if(old){sp.classList.remove('bump');void sp.offsetWidth;sp.classList.add('bump');}}});
+    prevText=text; els.digits.setAttribute('aria-label',(f.sign?'超時 ':'剩餘 ')+Number(f.m)+' 分 '+Number(f.s)+' 秒');
+  }
+  function render(){
+    const s=cur(), ms=remainOf(s), running=s.status==='running';
+    // bells: only when crossing a threshold while running (late joiners don't get retroactive bells)
+    if(running&&prevMs!==null&&prevRound===s.round){ if(prevMs>WARN&&ms<=WARN&&ms>0)warnBell(); if(prevMs>0&&ms<=0)endBell(); }
+    prevMs=ms; prevRound=s.round;
+    const over=ms<=0&&s.status!=='idle', warn=!over&&ms<=WARN&&s.status!=='idle';
+    const key=over?'over':warn?'warn':'ok';
+    if(key!==prevKey){els.app.classList.toggle('warn',warn);els.app.classList.toggle('over',over);document.body.classList.toggle('over',over);
+      document.documentElement.style.setProperty('--ring-color',over?'var(--alarm)':warn?'var(--amber)':'var(--scrub)');prevKey=key;}
+    setDigits(ms);
+    els.prog.style.strokeDashoffset=C*(1-Math.max(0,ms)/s.duration);
+    const a=WARN/s.duration*2*Math.PI; els.tick.setAttribute('transform',`rotate(${-a*180/Math.PI} 100 100)`);
+    els.round.textContent=s.round;
+    els.state.textContent= s.status==='idle'?'準備開始': s.status==='paused'?'已暫停': over?'時間到・超時中': warn?'最後 1 分鐘':'計時中';
+    const ctl=isController();
+    els.hint.textContent= !ctl?'由主考控制': s.status==='idle'?'點圓環開始': running?'點圓環暫停': over?'按下一輪換學員':'點圓環繼續';
+    // main button
+    const label= s.status==='idle'?'開始': running&&!over?'暫停': over?'下一輪':'繼續';
+    if(els.main.textContent!==label)els.main.textContent=label;
+    els.main.classList.toggle('pause',running&&!over); els.main.classList.toggle('next',over);
+    if(s.status!==prevStatus){ prevStatus=s.status; running?lockOn():lockOff(); pushPresence(); }
+    if(Number(els.dur.value)*60000!==s.duration) els.dur.value=String(s.duration/60000);
+    els.dur.disabled=!ctl||s.status!=='idle';
+  }
+  (function loop(){render();requestAnimationFrame(loop);})();
+  setInterval(()=>{ if(document.hidden) render(); },500); // keep bells working if rAF is throttled
+
+  /* ---------- actions ---------- */
+  function commit(next){
+    if(mode==='solo'){local=next;return;}
+    if(!canControl)return;
+    master=next; // optimistic
+    writing=writing.then(()=>db.doc('live/clock').set(next)).catch(e=>flash('同步失敗，請檢查網路後再試一次'));
+  }
+  function toggle(){
+    if(!isController())return; audio();
+    const s=cur(), ms=remainOf(s), now=Date.now();
+    if(s.status==='running'&&ms<=0){ return nextRound(); }
+    if(s.status==='running') commit({...s,status:'paused',remain:ms,startedAt:0});
+    else commit({...s,status:'running',startedAt:now,remain:s.status==='idle'?s.duration:s.remain});
+  }
+  function nextRound(){ const s=cur(); commit({...mk(s.duration),round:s.round+1}); flash(`進入第 ${s.round+1} 輪`); nudgeExaminee(); }
+  function reset(){ const s=cur(); commit({...mk(s.duration),round:s.round}); flash('已重設本輪'); }
+  function nudgeExaminee(){ const w=$('who'); const m=w.value.match(/^(.*?)([A-Z])$/); if(m&&m[2]!=='Z'){w.value=m[1]+String.fromCharCode(m[2].charCodeAt(0)+1);pushPresence();} }
+  let flashT=0; function flash(t){els.toast.textContent=t;clearTimeout(flashT);flashT=setTimeout(()=>els.toast.textContent='',2600);}
+
+  els.main.onclick=toggle; els.ring.onclick=toggle;
+  els.dur.onchange=()=>{ const d=Number(els.dur.value)*60000; const s=cur(); if(s.status==='idle')commit({...s,duration:d,remain:d}); };
+  $('test').onclick=()=>{audio();warnBell();};
+
+  // hold-to-reset
+  let holdT=0;
+  const startHold=e=>{ if(!isController())return; if(e.pointerType==='mouse'&&e.button!==0)return; els.hold.classList.add('holding'); holdT=setTimeout(()=>{els.hold.classList.remove('holding');vib(60);reset();},900); };
+  const endHold=()=>{clearTimeout(holdT);els.hold.classList.remove('holding');};
+  els.hold.addEventListener('pointerdown',startHold); ['pointerup','pointerleave','pointercancel'].forEach(t=>els.hold.addEventListener(t,endHold));
+  els.hold.addEventListener('click',e=>{ if(e.detail===0&&isController()) reset(); else if(e.detail&&!els.hold.classList.contains('holding')) flash('請長按 1 秒重設'); });
+  els.hold.addEventListener('contextmenu',e=>e.preventDefault());
+
+  /* ---------- mode ---------- */
+  function setMode(m){
+    if(m==='sync'&&!syncReady){flash('同步需要在 claude.ai 登入後開啟此頁');return;}
+    mode=m; els.mSolo.setAttribute('aria-pressed',m==='solo'); els.mSync.setAttribute('aria-pressed',m==='sync');
+    placeKnob();
+    if(m==='sync'&&!master) master=mk(local.duration);
+    prevMs=null; prevStatus=''; prevKey='';
+    updateControlsLock(); updateOnline(); pushPresence();
+    try{localStorage.setItem('osce-mode',m)}catch(e){}
+  }
+  function updateControlsLock(){
+    const lock=mode==='sync'&&!canControl;
+    let note=document.getElementById('lockNote');
+    els.main.hidden=lock; els.hold.hidden=lock;
+    if(lock&&!note){note=document.createElement('div');note.id='lockNote';note.className='lock';note.textContent='全場同步中：由主考統一開始與暫停，你的手機會自動跟著倒數與響鈴。';els.controls.appendChild(note);}
+    if(!lock&&note) note.remove();
+  }
+  function placeKnob(){const b=(mode==='solo'?els.mSolo:els.mSync); els.knob.style.width=b.offsetWidth+'px'; els.knob.style.transform=`translateX(${b.offsetLeft-3}px)`;}
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(placeKnob);
+  els.mSolo.onclick=()=>setMode('solo'); els.mSync.onclick=()=>setMode('sync');
+  requestAnimationFrame(()=>setMode('solo'));
+
+  /* ---------- presence & board ---------- */
+  function myStatus(){const s=cur(),ms=remainOf(s);return s.status==='idle'?'idle':s.status==='paused'?'paused':ms<=0?'over':ms<=WARN?'warn':'run';}
+  let presT=0;
+  function pushPresence(){ if(!room)return; clearTimeout(presT); presT=setTimeout(()=>{
+    room.presence({st:inputs[0].value.slice(0,10),item:inputs[1].value.slice(0,24),mode,status:myStatus(),round:cur().round}).catch(()=>{});
+  },150); }
+  inputs.forEach(i=>i.addEventListener('input',pushPresence));
+  setInterval(()=>{ if(room&&cur().status==='running')pushPresence(); },5000); // refresh run/warn/over pill
+
+  const STATUS={idle:['待命',''],paused:['暫停',''],run:['計時中','run'],warn:['最後 1 分','warn'],over:['超時','over']};
+  function renderBoard(peers){
+    const list=peers.filter(p=>p.kind==='viewer'&&p.presence&&p.presence.mode==='sync');
+    els.board.textContent='';
+    list.sort((a,b)=>String(a.presence.st).localeCompare(String(b.presence.st),'zh-Hant',{numeric:true}));
+    for(const p of list){
+      const li=document.createElement('li'); if(p.sameTab)li.className='me';
+      const st=document.createElement('div');st.className='st';st.textContent=String(p.presence.st||'未設定站別');
+      if(p.sameTab){const em=document.createElement('em');em.textContent='你';st.appendChild(em);}
+      const it=document.createElement('div');it.className='it';it.textContent=String(p.presence.item||'—');
+      const [t,c]=STATUS[p.presence.status]||STATUS.idle; const pill=document.createElement('span');pill.className='pill '+c;pill.textContent=t;
+      li.append(st,it,pill); els.board.appendChild(li);
+    }
+    els.boardEmpty.hidden=list.length>0; els.boardCount.textContent=list.length?list.length+' 站在線':'';
+    updateOnline(list.length);
+  }
+  let onlineN=0;
+  function updateOnline(n){ if(n!==undefined)onlineN=n; const live=mode==='sync'&&room&&room.connected();
+    els.online.classList.toggle('live',!!live);
+    els.onlineTxt.textContent= mode==='solo'?'單機模式': !live?'連線中…': canControl?`主考・${onlineN} 站在線`:`跟隨主考・${onlineN} 站在線`; }
+
+  function hideSync(){ document.querySelector('.seg').hidden=true; document.querySelector('.board').hidden=true;
+    els.onlineTxt.textContent='單機計時'; const n=document.querySelector('.note'); if(n) n.textContent='剩 1 分鐘響 2 聲並開始心跳提醒；時間到響長鈴、轉紅並顯示超時。請關閉靜音、考前先按一次「試聽鈴聲」。'; }
+  /* ---------- capabilities ---------- */
+  (async()=>{
+    const cl=window.claude; if(!cl||!cl.use){ hideSync(); return; }
+    const [d,r,u]=await Promise.all([cl.use('db'),cl.use('room'),cl.use('user')]);
+    db=d; room=r;
+    if(!db){ hideSync(); return; }
+    try{ canControl=u?await u.canEdit():false; }catch(e){ canControl=false; }
+    db.doc('live/clock').onSnapshot(snap=>{
+      const v=snap.exists?snap.data():null;
+      if(v&&typeof v.duration==='number'&&typeof v.remain==='number'){
+        master={status:['idle','running','paused'].includes(v.status)?v.status:'idle',startedAt:Number(v.startedAt)||0,remain:v.remain,duration:v.duration,round:Number(v.round)||1};
+      } else if(!master) master=mk(8*60000);
+    },()=>{});
+    syncReady=true;
+    if(room){ room.onPeers(ch=>renderBoard(ch.peers),()=>{}); room.onConnection(()=>updateOnline(),()=>{}); }
+    let saved=null; try{saved=localStorage.getItem('osce-mode')}catch(e){}
+    setMode(saved==='sync'?'sync':mode);
+  })();
+})();
+</script>
+
+</body>
+</html>
